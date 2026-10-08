@@ -297,7 +297,7 @@ func TestImpactedWorkloadsCheck_JobWithoutStatus(t *testing.T) {
 	g.Expect(result.ImpactedObjects).To(HaveLen(1))
 }
 
-func TestImpactedWorkloadsCheck_ActiveJobs_BlockingAt36(t *testing.T) {
+func TestImpactedWorkloadsCheck_ActiveJobs_AdvisoryAt36(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -335,14 +335,14 @@ func TestImpactedWorkloadsCheck_ActiveJobs_BlockingAt36(t *testing.T) {
 		"Type":    Equal(trainingoperator.ConditionTypePyTorchJobsCompatible),
 		"Status":  Equal(metav1.ConditionFalse),
 		"Reason":  Equal(check.ReasonWorkloadsImpacted),
-		"Message": And(ContainSubstring("Found 1 active PyTorchJob(s)"), ContainSubstring("removed in 3.6")),
+		"Message": And(ContainSubstring("Found 1 active PyTorchJob(s)"), ContainSubstring("removed in 3.6"), ContainSubstring("consider letting them complete or deleting them")),
 	}))
-	g.Expect(result.Status.Conditions[0].Impact).To(Equal(resultpkg.ImpactBlocking))
+	g.Expect(result.Status.Conditions[0].Impact).To(Equal(resultpkg.ImpactAdvisory))
 	g.Expect(result.Annotations).To(HaveKeyWithValue(check.AnnotationImpactedWorkloadCount, "1"))
 	g.Expect(result.ImpactedObjects).To(HaveLen(1))
 }
 
-func TestImpactedWorkloadsCheck_MixedJobs_BlockingAt36(t *testing.T) {
+func TestImpactedWorkloadsCheck_MixedJobs_AdvisoryAt36(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -401,7 +401,7 @@ func TestImpactedWorkloadsCheck_MixedJobs_BlockingAt36(t *testing.T) {
 		"Reason":  Equal(check.ReasonWorkloadsImpacted),
 		"Message": And(ContainSubstring("1 active"), ContainSubstring("1 completed"), ContainSubstring("removed in 3.6")),
 	}))
-	g.Expect(result.Status.Conditions[0].Impact).To(Equal(resultpkg.ImpactBlocking))
+	g.Expect(result.Status.Conditions[0].Impact).To(Equal(resultpkg.ImpactAdvisory))
 }
 
 func TestImpactedWorkloadsCheck_CompletedOnly_NonBlockingAt36(t *testing.T) {

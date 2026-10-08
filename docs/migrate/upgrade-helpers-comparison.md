@@ -1879,7 +1879,7 @@ chmod +x kubeflow-trainer-verification.sh
 ```bash
 rhai-cli migrate run \
   --migration training.verify-workloads \
-  --target-version 3.5.0
+  --target-version 3.6.0
 ```
 
 </td>
@@ -1890,25 +1890,35 @@ rhai-cli migrate run \
 <summary><b>Example: Training verification output</b></summary>
 
 ```
-$ rhai-cli migrate run --migration training.verify-workloads --target-version 3.5.0
+$ rhai-cli migrate run --migration training.verify-workloads --target-version 3.6.0
 
-Current OpenShift AI version: 2.25.0
-Target OpenShift AI version: 3.5.0
+Current OpenShift AI version: 3.5.0
+Target OpenShift AI version: 3.6.0
 Phase: pre-upgrade
 
 training.verify-workloads:
 
-Running migration: training.verify-workloads
+Running migration: training.verify-workloads (confirmations skipped)
 
-  → Discover Kubeflow v1 training workloads
-    ✓ Found 2 PyTorchJobs, 0 TFJobs, 0 MPIJobs
-  → Check PyTorchJob fine-tune-llama (team-ml)
-    → Active — requires migration to Trainer v2 TrainJob before upgrade
-  → Check PyTorchJob text-classifier (team-ds)
-    ✓ Completed — safe to proceed
+  → Check TrainingOperator component state
+    ⚠ TrainingOperator (Kubeflow Training Operator v1) is removed in RHOAI 3.6. If you keep it enabled, it will no longer be managed after the upgrade and you will be responsible for removing it manually (state: Managed, 1 component CR(s) present). This does not block the upgrade: consider setting the trainingoperator managementState to 'Removed' in your current version - this cleans up everything - then use the new Trainer operator in RHOAI 3.6
+  → Check TrainJob v2 CRD readiness
+    ✓ TrainJob CRD installed — v2 API available
+  → List PyTorchJob workloads
+    ✓ team-ml/fine-tune-llama — Running (age: 2h)
+    ✓ team-ds/text-classifier — Succeeded (age: 3d)
+    ✓ Found 2 PyTorchJob(s)
+  → Assess migration readiness
+    ⚠ team-ml/fine-tune-llama is Running — consider letting it complete or deleting it before upgrading
+    ⚠ Found 1 active v1 job(s) — active workloads stop being reconciled once TrainingOperator is no longer managed. This does not block the upgrade: consider letting them complete or deleting them first
+  → Migration summary
+    ⚠ Found 2 v1 training workload(s): 1 active, 1 completed — consider draining the active ones and migrating to Trainer v2 TrainJob
 
-Migration training.verify-workloads completed with skipped steps
+Migration training.verify-workloads completed with warnings
 ```
+
+The check is advisory only: active v1 jobs and an enabled TrainingOperator are
+reported as warnings and never block the upgrade.
 
 </details>
 

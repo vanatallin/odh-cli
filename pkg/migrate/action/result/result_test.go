@@ -112,3 +112,54 @@ func TestHasFailedSteps(t *testing.T) {
 		g.Expect(r.HasFailedSteps()).To(BeFalse())
 	})
 }
+
+func TestHasWarningSteps(t *testing.T) {
+	t.Run("should return false when no steps", func(t *testing.T) {
+		g := NewWithT(t)
+		r := result.New("migration", "test", "Test", "")
+		g.Expect(r.HasWarningSteps()).To(BeFalse())
+	})
+
+	t.Run("should return false when all steps completed", func(t *testing.T) {
+		g := NewWithT(t)
+		r := result.New("migration", "test", "Test", "")
+		r.Status.Steps = []result.ActionStep{
+			result.NewStep("step1", "Step 1", result.StepCompleted, "done"),
+			result.NewStep("step2", "Step 2", result.StepCompleted, "done"),
+		}
+		g.Expect(r.HasWarningSteps()).To(BeFalse())
+	})
+
+	t.Run("should return true when top-level step has warning", func(t *testing.T) {
+		g := NewWithT(t)
+		r := result.New("migration", "test", "Test", "")
+		r.Status.Steps = []result.ActionStep{
+			result.NewStep("step1", "Step 1", result.StepCompleted, "done"),
+			result.NewStep("step2", "Step 2", result.StepWarning, "watch out"),
+		}
+		g.Expect(r.HasWarningSteps()).To(BeTrue())
+	})
+
+	t.Run("should return true when nested child step has warning", func(t *testing.T) {
+		g := NewWithT(t)
+		r := result.New("migration", "test", "Test", "")
+
+		parent := result.NewStep("parent", "Parent", result.StepCompleted, "done")
+		parent.Children = []result.ActionStep{
+			result.NewStep("child", "Child", result.StepWarning, "watch out"),
+		}
+
+		r.Status.Steps = []result.ActionStep{parent}
+		g.Expect(r.HasWarningSteps()).To(BeTrue())
+	})
+
+	t.Run("should return false when only failed and skipped steps", func(t *testing.T) {
+		g := NewWithT(t)
+		r := result.New("migration", "test", "Test", "")
+		r.Status.Steps = []result.ActionStep{
+			result.NewStep("step1", "Step 1", result.StepFailed, "something broke"),
+			result.NewStep("step2", "Step 2", result.StepSkipped, "skipped"),
+		}
+		g.Expect(r.HasWarningSteps()).To(BeFalse())
+	})
+}

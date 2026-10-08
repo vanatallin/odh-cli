@@ -46,7 +46,7 @@ func TestTrainingOperatorRemovalCheck_CanApply_NotConfigured(t *testing.T) {
 	g.Expect(canApply).To(BeFalse())
 }
 
-func TestTrainingOperatorRemovalCheck_ManagedBlocking(t *testing.T) {
+func TestTrainingOperatorRemovalCheck_ManagedAdvisory(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -62,12 +62,17 @@ func TestTrainingOperatorRemovalCheck_ManagedBlocking(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(result.Status.Conditions).To(HaveLen(1))
 	g.Expect(result.Status.Conditions[0].Condition).To(MatchFields(IgnoreExtras, Fields{
-		"Type":    Equal(check.ConditionTypeCompatible),
-		"Status":  Equal(metav1.ConditionFalse),
-		"Reason":  Equal(check.ReasonVersionIncompatible),
-		"Message": And(ContainSubstring("enabled"), ContainSubstring("removed in RHOAI 3.6")),
+		"Type":   Equal(check.ConditionTypeCompatible),
+		"Status": Equal(metav1.ConditionFalse),
+		"Reason": Equal(check.ReasonVersionIncompatible),
+		"Message": And(
+			ContainSubstring("enabled"),
+			ContainSubstring("removed in RHOAI 3.6"),
+			ContainSubstring("no longer be managed"),
+			ContainSubstring("removing it manually"),
+		),
 	}))
-	g.Expect(result.Status.Conditions[0].Impact).To(Equal(resultpkg.ImpactBlocking))
+	g.Expect(result.Status.Conditions[0].Impact).To(Equal(resultpkg.ImpactAdvisory))
 	g.Expect(result.Annotations).To(And(
 		HaveKeyWithValue("component.opendatahub.io/management-state", "Managed"),
 		HaveKeyWithValue("check.opendatahub.io/target-version", "3.6.0"),

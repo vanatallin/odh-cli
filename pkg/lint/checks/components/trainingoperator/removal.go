@@ -13,7 +13,9 @@ import (
 	"github.com/opendatahub-io/odh-cli/pkg/util/version"
 )
 
-// RemovalCheck validates that TrainingOperator v1 is disabled before upgrading to 3.6.
+// RemovalCheck warns that TrainingOperator v1 is removed in RHOAI 3.6 when the
+// component is still enabled. The finding is advisory: the upgrade can proceed,
+// but the component stops being managed afterwards.
 type RemovalCheck struct {
 	check.BaseCheck
 }
@@ -26,8 +28,8 @@ func NewRemovalCheck() *RemovalCheck {
 			Type:             check.CheckTypeRemoval,
 			CheckID:          "components.trainingoperator.removal",
 			CheckName:        "Components :: TrainingOperator :: Removal (3.6)",
-			CheckDescription: "Validates that TrainingOperator (Kubeflow Training Operator v1) is disabled before upgrading to RHOAI 3.6 (component is removed, use Trainer v2)",
-			CheckRemediation: "Before upgrading, drain active PyTorchJobs then set trainingoperator managementState to 'Removed' in DataScienceCluster and delete the TrainingOperator CR.",
+			CheckDescription: "Warns that TrainingOperator (Kubeflow Training Operator v1) is removed in RHOAI 3.6 - if kept enabled it will no longer be managed after the upgrade and must be removed manually",
+			CheckRemediation: "Set trainingoperator managementState to 'Removed' in your current version - this cleans up everything - then use the Trainer operator (Trainer v2) in RHOAI 3.6. If kept enabled, the component will no longer be managed after the upgrade and you will be responsible for removing it manually.",
 		},
 	}
 }
@@ -50,7 +52,8 @@ func (c *RemovalCheck) CanApply(ctx context.Context, target check.Target) (bool,
 
 func (c *RemovalCheck) Validate(ctx context.Context, target check.Target) (*result.DiagnosticResult, error) {
 	return validate.Component(c, target).
-		Run(ctx, validate.Removal("TrainingOperator (Kubeflow v1) is enabled (state: %s) but is removed in RHOAI %s. Use Trainer v2 instead.",
-			check.WithImpact(result.ImpactBlocking),
+		Run(ctx, validate.Removal("TrainingOperator (Kubeflow v1) is enabled (state: %s) but is removed in RHOAI %s - "+
+			"it will no longer be managed after the upgrade and you will be responsible for removing it manually. Use Trainer v2 instead.",
+			check.WithImpact(result.ImpactAdvisory),
 			check.WithRemediation(c.CheckRemediation)))
 }

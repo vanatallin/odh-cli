@@ -299,26 +299,24 @@ func (c *RunCommand) runMigrationMode(
 				fmt.Errorf("migration halted: %s", migrationID))
 		}
 		skippedSteps := actionResult.HasSkippedSteps()
+		warningSteps := actionResult.HasWarningSteps()
 		failedSteps := actionResult.HasFailedSteps()
 
-		if skippedSteps {
+		if skippedSteps || warningSteps {
 			hasSkips = true
 		}
 
 		if failedSteps {
-			c.IO.Errorf("Migration %s completed with failures", migrationID)
-
 			hasFailures = true
-		} else if skippedSteps {
-			c.IO.Errorf("Migration %s completed with skipped steps", migrationID)
-		} else {
-			c.IO.Errorf("Migration %s completed successfully!", migrationID)
 		}
+
+		printMigrationOutcome(c.IO, migrationID, failedSteps, warningSteps, skippedSteps)
 
 		migrationResults = append(migrationResults, MigrationResultItem{
 			ID:              migrationID,
 			Completed:       actionResult.Status.Completed,
 			HasSkippedSteps: skippedSteps,
+			HasWarningSteps: warningSteps,
 			HasFailedSteps:  failedSteps,
 			PhaseMismatch:   phaseMismatch,
 		})
@@ -331,12 +329,27 @@ func (c *RunCommand) runMigrationMode(
 	return c.reportRunSummary(hasFailures, hasSkips)
 }
 
-func (c *RunCommand) reportRunSummary(hasFailures, hasSkips bool) error {
+// printMigrationOutcome reports the outcome of a completed migration. Warnings
+// surface advisory findings and never fail the command; only failed steps do.
+func printMigrationOutcome(io iostreams.Interface, migrationID string, failed, warned, skipped bool) {
+	switch {
+	case failed:
+		io.Errorf("Migration %s completed with failures", migrationID)
+	case warned:
+		io.Errorf("Migration %s completed with warnings", migrationID)
+	case skipped:
+		io.Errorf("Migration %s completed with skipped steps", migrationID)
+	default:
+		io.Errorf("Migration %s completed successfully!", migrationID)
+	}
+}
+
+func (c *RunCommand) reportRunSummary(hasFailures, hasWarnings bool) error {
 	c.IO.Fprintln()
 
 	if hasFailures {
-		if hasSkips {
-			c.IO.Errorf("All migrations completed (some steps failed, some were skipped). Review the output above for details.")
+		if hasWarnings {
+			c.IO.Errorf("All migrations completed (some steps failed, some were skipped or warned). Review the output above for details.")
 		} else {
 			c.IO.Errorf("All migrations completed (some steps failed). Review the output above for details.")
 		}
@@ -344,8 +357,8 @@ func (c *RunCommand) reportRunSummary(hasFailures, hasSkips bool) error {
 		return errors.New("one or more migrations completed with failures")
 	}
 
-	if hasSkips {
-		c.IO.Errorf("All migrations completed (some steps were skipped).")
+	if hasWarnings {
+		c.IO.Errorf("All migrations completed (some steps were skipped or flagged with warnings).")
 	} else {
 		c.IO.Errorf("All migrations completed successfully!")
 	}

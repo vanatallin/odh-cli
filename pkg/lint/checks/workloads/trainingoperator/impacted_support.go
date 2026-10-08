@@ -19,10 +19,11 @@ func (c *ImpactedWorkloadsCheck) newPyTorchJobCondition(
 ) result.Condition {
 	totalCount := activeCount + completedCount
 
-	impact := result.ImpactAdvisory
+	// The finding stays advisory at every version: removal in 3.6 does not
+	// block the upgrade, but active workloads stop being reconciled once the
+	// component is no longer managed.
 	verb := "deprecated"
 	if isRemoval {
-		impact = result.ImpactBlocking
 		verb = "removed in 3.6"
 	}
 
@@ -40,8 +41,8 @@ func (c *ImpactedWorkloadsCheck) newPyTorchJobCondition(
 			ConditionTypePyTorchJobsCompatible,
 			metav1.ConditionFalse,
 			check.WithReason(check.ReasonWorkloadsImpacted),
-			check.WithMessage("Found %d PyTorchJob(s) (%d active, %d completed) - TrainingOperator (Kubeflow v1) is %s, migrate to Trainer v2", totalCount, activeCount, completedCount, verb),
-			check.WithImpact(impact),
+			check.WithMessage("Found %d PyTorchJob(s) (%d active, %d completed) - TrainingOperator (Kubeflow v1) is %s, consider letting the active ones complete or deleting them before upgrading", totalCount, activeCount, completedCount, verb),
+			check.WithImpact(result.ImpactAdvisory),
 			check.WithRemediation(c.CheckRemediation),
 		)
 	}
@@ -51,8 +52,8 @@ func (c *ImpactedWorkloadsCheck) newPyTorchJobCondition(
 			ConditionTypePyTorchJobsCompatible,
 			metav1.ConditionFalse,
 			check.WithReason(check.ReasonWorkloadsImpacted),
-			check.WithMessage("Found %d active PyTorchJob(s) - TrainingOperator (Kubeflow v1) is %s, drain and migrate to Trainer v2", activeCount, verb),
-			check.WithImpact(impact),
+			check.WithMessage("Found %d active PyTorchJob(s) - TrainingOperator (Kubeflow v1) is %s, consider letting them complete or deleting them before upgrading", activeCount, verb),
+			check.WithImpact(result.ImpactAdvisory),
 			check.WithRemediation(c.CheckRemediation),
 		)
 	}

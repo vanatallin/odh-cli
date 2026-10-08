@@ -33,8 +33,8 @@ func NewImpactedWorkloadsCheck() *ImpactedWorkloadsCheck {
 			Type:             check.CheckTypeImpactedWorkloads,
 			CheckID:          "workloads.trainingoperator.impacted-workloads",
 			CheckName:        "Workloads :: TrainingOperator :: Impacted Workloads (3.3+)",
-			CheckDescription: "Lists PyTorchJobs using deprecated TrainingOperator (Kubeflow v1) that will be impacted by removal in 3.6 and transition to Trainer v2",
-			CheckRemediation: "Complete or delete active PyTorchJobs before upgrading; migrate to Trainer v2 TrainJob API",
+			CheckDescription: "Lists PyTorchJobs using deprecated TrainingOperator (Kubeflow v1) that will stop being reconciled when the component is removed in 3.6",
+			CheckRemediation: "Let active PyTorchJobs complete or delete them before upgrading, then migrate to Trainer v2 TrainJob API. Before upgrading to RHOAI 3.6, set trainingoperator managementState to 'Removed' in your current version to clean up the component",
 		},
 	}
 }

@@ -270,11 +270,13 @@ func (c *PrepareCommand) runPrepareMode(
 				fmt.Errorf("preparation halted: %s", migrationID))
 		}
 
-		c.IO.Errorf("Preparation %s completed successfully!", migrationID)
+		printPreparationOutcome(c.IO, migrationID, actionResult.HasWarningSteps())
+
 		migrationResults = append(migrationResults, MigrationResultItem{
 			ID:              migrationID,
 			Completed:       actionResult.Status.Completed,
 			HasSkippedSteps: actionResult.HasSkippedSteps(),
+			HasWarningSteps: actionResult.HasWarningSteps(),
 			PhaseMismatch:   phaseMismatch,
 		})
 	}
@@ -322,15 +324,27 @@ type MigrationResultItem struct {
 	Completed       bool   `json:"completed"                 yaml:"completed"`
 	Skipped         bool   `json:"skipped,omitempty"         yaml:"skipped,omitempty"`
 	HasSkippedSteps bool   `json:"hasSkippedSteps,omitempty" yaml:"hasSkippedSteps,omitempty"`
+	HasWarningSteps bool   `json:"hasWarningSteps,omitempty" yaml:"hasWarningSteps,omitempty"`
 	HasFailedSteps  bool   `json:"hasFailedSteps,omitempty"  yaml:"hasFailedSteps,omitempty"`
 	PhaseMismatch   bool   `json:"phaseMismatch,omitempty"   yaml:"phaseMismatch,omitempty"`
+}
+
+// printPreparationOutcome reports the outcome of a completed preparation.
+// Warnings surface advisory findings and never fail the command.
+func printPreparationOutcome(io iostreams.Interface, migrationID string, hasWarnings bool) {
+	switch {
+	case hasWarnings:
+		io.Errorf("Preparation %s completed with warnings", migrationID)
+	default:
+		io.Errorf("Preparation %s completed successfully!", migrationID)
+	}
 }
 
 func countWarnings(migrations []MigrationResultItem) int {
 	warnings := 0
 
 	for _, m := range migrations {
-		if m.Skipped || m.HasSkippedSteps || m.PhaseMismatch {
+		if m.Skipped || m.HasSkippedSteps || m.HasWarningSteps || m.PhaseMismatch {
 			warnings++
 		}
 	}

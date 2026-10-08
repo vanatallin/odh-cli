@@ -102,6 +102,8 @@ func getStatusIcon(status result.StepStatus) string {
 		return color.GreenString("✓")
 	case result.StepFailed:
 		return color.RedString("✗")
+	case result.StepWarning:
+		return color.YellowString("⚠")
 	case result.StepSkipped:
 		return color.YellowString("→")
 	case result.StepPending, result.StepRunning:

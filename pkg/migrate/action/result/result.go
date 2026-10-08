@@ -10,6 +10,7 @@ const (
 	StepPending   StepStatus = "Pending"
 	StepRunning   StepStatus = "Running"
 	StepCompleted StepStatus = "Completed"
+	StepWarning   StepStatus = "Warning"
 	StepFailed    StepStatus = "Failed"
 	StepSkipped   StepStatus = "Skipped"
 )
@@ -79,6 +80,13 @@ func (r *ActionResult) HasFailedSteps() bool {
 	return hasFailed(r.Status.Steps)
 }
 
+// HasWarningSteps reports whether any step in the tree completed with a warning.
+// Warning steps do not fail the migration; they surface conditions the user
+// should be aware of before proceeding.
+func (r *ActionResult) HasWarningSteps() bool {
+	return hasWarning(r.Status.Steps)
+}
+
 func hasSkipped(steps []ActionStep) bool {
 	for _, s := range steps {
 		if s.Status == StepSkipped {
@@ -86,6 +94,20 @@ func hasSkipped(steps []ActionStep) bool {
 		}
 
 		if hasSkipped(s.Children) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasWarning(steps []ActionStep) bool {
+	for _, s := range steps {
+		if s.Status == StepWarning {
+			return true
+		}
+
+		if hasWarning(s.Children) {
 			return true
 		}
 	}
