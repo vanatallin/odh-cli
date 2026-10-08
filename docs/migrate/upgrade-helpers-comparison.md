@@ -1901,7 +1901,7 @@ training.verify-workloads:
 Running migration: training.verify-workloads (confirmations skipped)
 
   → Check TrainingOperator component state
-    ⚠ TrainingOperator (Kubeflow Training Operator v1) is removed in RHOAI 3.6. If you keep it enabled, it will no longer be managed after the upgrade and you will be responsible for removing it manually (state: Managed, 1 component CR(s) present). This does not block the upgrade: consider setting the trainingoperator managementState to 'Removed' in your current version - this cleans up everything - then use the new Trainer operator in RHOAI 3.6
+    ⚠ TrainingOperator (Kubeflow Training Operator v1) is removed in RHOAI 3.6. If you keep it enabled, it will no longer be managed after the upgrade and you will be responsible for removing it manually (state: Managed, CRD installed). This does not block the upgrade: consider setting the trainingoperator managementState to 'Removed' in your current version - this cleans up everything - then use the new Trainer operator in RHOAI 3.6
   → Check TrainJob v2 CRD readiness
     ✓ TrainJob CRD installed — v2 API available
   → List PyTorchJob workloads

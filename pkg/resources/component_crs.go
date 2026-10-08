@@ -27,7 +27,7 @@ var ComponentCRResourceTypes = map[string]ResourceType{
 	"ray":                newComponentCR("rays", "Ray"),
 	"sparkoperator":      newComponentCR("sparkoperators", "SparkOperator"),
 	"trainer":            newComponentCR("trainers", "Trainer"),
-	"trainingoperator":   newComponentCR("trainingoperators", "TrainingOperator"),
+	"trainingoperator":   TrainingOperator,
 	"trustyai":           newComponentCR("trustyais", "TrustyAI"),
 	"workbenches":        newComponentCR("workbenches", "Workbenches"),
 }

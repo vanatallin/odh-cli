@@ -385,6 +385,14 @@ var (
 		Resource: "trainjobs",
 	}
 
+	// TrainingOperator is the ODH operator's TrainingOperator v1 component CR.
+	TrainingOperator = ResourceType{
+		Group:    componentCRGroup,
+		Version:  "v1alpha1",
+		Kind:     "TrainingOperator",
+		Resource: "trainingoperators",
+	}
+
 	// GuardrailsOrchestrator is the TrustyAI GuardrailsOrchestrator resource.
 	GuardrailsOrchestrator = ResourceType{
 		Group:    "trustyai.opendatahub.io",

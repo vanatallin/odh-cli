@@ -35,7 +35,7 @@ const (
 )
 
 //nolint:gochecknoglobals // Test fixture
-var trainingOperatorCRType = resources.ComponentCRResourceTypes[constants.ComponentTrainingOperator]
+var trainingOperatorCRType = resources.TrainingOperator
 
 //nolint:gochecknoglobals // Test fixture
 var trainingOperatorCRGroupResource = schema.GroupResource{
@@ -87,16 +87,6 @@ func newDSC(trainingoperatorState string) *unstructured.Unstructured {
 					"managementState": trainingoperatorState,
 				},
 			},
-		},
-	}}
-}
-
-func newTrainingOperatorCR(name string) *unstructured.Unstructured {
-	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": trainingOperatorCRType.APIVersion(),
-		"kind":       trainingOperatorCRType.Kind,
-		"metadata": map[string]any{
-			"name": name,
 		},
 	}}
 }
@@ -635,10 +625,7 @@ func TestVerifyWorkloadsAction_TrainingOperatorStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		target := newTestTargetForVersions(testCurrent35, testTarget36,
-			newDSC("Managed"),
-			newTrainingOperatorCR("training-operator"),
-		)
+		target := newTestTargetForVersions(testCurrent35, testTarget36, newDSC("Managed"))
 
 		a := &trainingaction.VerifyWorkloadsAction{}
 		actionResult, err := a.Run().Execute(ctx, target)
@@ -653,17 +640,21 @@ func TestVerifyWorkloadsAction_TrainingOperatorStatus(t *testing.T) {
 		g.Expect(statusStep.Status).To(Equal(result.StepWarning))
 		g.Expect(statusStep.Message).To(ContainSubstring("removed in RHOAI 3.6"))
 		g.Expect(statusStep.Message).To(ContainSubstring("no longer be managed"))
+		g.Expect(statusStep.Message).To(ContainSubstring("CRD installed"))
 		g.Expect(statusStep.Message).To(ContainSubstring("managementState to 'Removed'"))
 		g.Expect(statusStep.Message).To(ContainSubstring("does not block the upgrade"))
 		g.Expect(statusStep.Details["trainingoperatorState"]).To(Equal("Managed"))
-		g.Expect(statusStep.Details["trainingoperatorCRs"]).To(Equal(1))
+		g.Expect(statusStep.Details["trainingoperatorCRDInstalled"]).To(BeTrue())
 	})
 
-	t.Run("warns about inconsistent state when managed without component CRs", func(t *testing.T) {
+	t.Run("warns about inconsistent state when managed without the CRD", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		target := newTestTargetForVersions(testCurrent35, testTarget36, newDSC("Managed"))
+		target := newTestTargetWithoutCRD(testCurrent35, testTarget36,
+			trainingOperatorCRGroupResource,
+			newDSC("Managed"),
+		)
 
 		a := &trainingaction.VerifyWorkloadsAction{}
 		actionResult, err := a.Run().Execute(ctx, target)
@@ -679,36 +670,10 @@ func TestVerifyWorkloadsAction_TrainingOperatorStatus(t *testing.T) {
 			ContainSubstring("managementState to 'Removed'"),
 		))
 		g.Expect(statusStep.Details["trainingoperatorState"]).To(Equal("Managed"))
-		g.Expect(statusStep.Details["trainingoperatorCRs"]).To(Equal(0))
+		g.Expect(statusStep.Details["trainingoperatorCRDInstalled"]).To(BeFalse())
 	})
 
-	t.Run("warns when TrainingOperator CRs remain after removal", func(t *testing.T) {
-		g := NewWithT(t)
-		ctx := t.Context()
-
-		target := newTestTargetForVersions(
-			testCurrent35,
-			testTarget36,
-			newDSC("Removed"),
-			newTrainingOperatorCR("trainingoperator"),
-		)
-
-		a := &trainingaction.VerifyWorkloadsAction{}
-		actionResult, err := a.Run().Execute(ctx, target)
-
-		g.Expect(err).ToNot(HaveOccurred())
-
-		statusStep := findStep(actionResult.Status.Steps, "trainingoperator-status")
-		g.Expect(statusStep).ToNot(BeNil())
-		g.Expect(statusStep.Status).To(Equal(result.StepWarning))
-		g.Expect(statusStep.Message).To(ContainSubstring("still exist"))
-		g.Expect(statusStep.Message).To(ContainSubstring("trainingoperator"))
-		g.Expect(statusStep.Message).To(ContainSubstring("does not block the upgrade"))
-		g.Expect(statusStep.Details["trainingoperatorState"]).To(Equal("Removed"))
-		g.Expect(statusStep.Details["trainingoperatorCRs"]).To(Equal(1))
-	})
-
-	t.Run("completes when TrainingOperator is removed", func(t *testing.T) {
+	t.Run("notes the harmless leftover CRD when removed", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -722,8 +687,57 @@ func TestVerifyWorkloadsAction_TrainingOperatorStatus(t *testing.T) {
 		statusStep := findStep(actionResult.Status.Steps, "trainingoperator-status")
 		g.Expect(statusStep).ToNot(BeNil())
 		g.Expect(statusStep.Status).To(Equal(result.StepCompleted))
+		g.Expect(statusStep.Message).To(And(
+			ContainSubstring("Removed"),
+			ContainSubstring("harmless leftover"),
+		))
 		g.Expect(statusStep.Details["trainingoperatorState"]).To(Equal("Removed"))
-		g.Expect(statusStep.Details["trainingoperatorCRs"]).To(Equal(0))
+		g.Expect(statusStep.Details["trainingoperatorCRDInstalled"]).To(BeTrue())
+	})
+
+	t.Run("completes when removed and the CRD is gone", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		target := newTestTargetWithoutCRD(testCurrent35, testTarget36,
+			trainingOperatorCRGroupResource,
+			newDSC("Removed"),
+		)
+
+		a := &trainingaction.VerifyWorkloadsAction{}
+		actionResult, err := a.Run().Execute(ctx, target)
+
+		g.Expect(err).ToNot(HaveOccurred())
+
+		statusStep := findStep(actionResult.Status.Steps, "trainingoperator-status")
+		g.Expect(statusStep).ToNot(BeNil())
+		g.Expect(statusStep.Status).To(Equal(result.StepCompleted))
+		g.Expect(statusStep.Message).To(ContainSubstring("CRD not installed"))
+		g.Expect(statusStep.Details["trainingoperatorState"]).To(Equal("Removed"))
+		g.Expect(statusStep.Details["trainingoperatorCRDInstalled"]).To(BeFalse())
+	})
+
+	t.Run("fails when the CRD check errors", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dynamicClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), listKinds)
+		dynamicClient.PrependReactor("list", trainingOperatorCRType.Resource, func(_ k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, errors.New("connection refused")
+		})
+
+		target := newTargetFromDynamicClient(dynamicClient, testCurrent35, testTarget36)
+
+		a := &trainingaction.VerifyWorkloadsAction{}
+		actionResult, err := a.Run().Execute(ctx, target)
+
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("checking TrainingOperator CRD"))
+
+		statusStep := findStep(actionResult.Status.Steps, "trainingoperator-status")
+		g.Expect(statusStep).ToNot(BeNil())
+		g.Expect(statusStep.Status).To(Equal(result.StepFailed))
+		g.Expect(statusStep.Details["trainingoperatorCRDInstalled"]).To(BeFalse())
 	})
 
 	t.Run("does not warn about removal for targets below 3.6", func(t *testing.T) {
@@ -771,7 +785,6 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 
 		target := newTestTargetForVersions(testCurrent35, testTarget36,
 			newDSC(constants.ManagementStateManaged),
-			newTrainingOperatorCR("training-operator"),
 			running, created,
 		)
 
@@ -793,7 +806,7 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 			ContainSubstring("managementState to 'Removed'"),
 		))
 		g.Expect(statusStep.Details["trainingoperatorState"]).To(Equal(constants.ManagementStateManaged))
-		g.Expect(statusStep.Details["trainingoperatorCRs"]).To(Equal(1))
+		g.Expect(statusStep.Details["trainingoperatorCRDInstalled"]).To(BeTrue())
 
 		readiness := findStep(actionResult.Status.Steps, "migration-readiness")
 		g.Expect(readiness).ToNot(BeNil())
@@ -816,7 +829,6 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 
 		target := newTestTargetForVersions(testCurrent35, testTarget36,
 			newDSC(constants.ManagementStateManaged),
-			newTrainingOperatorCR("training-operator"),
 			succeeded, failed,
 		)
 
@@ -837,7 +849,7 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 			ContainSubstring("managementState to 'Removed'"),
 		))
 		g.Expect(statusStep.Details["trainingoperatorState"]).To(Equal(constants.ManagementStateManaged))
-		g.Expect(statusStep.Details["trainingoperatorCRs"]).To(Equal(1))
+		g.Expect(statusStep.Details["trainingoperatorCRDInstalled"]).To(BeTrue())
 
 		// The job steps must not claim the operator was already removed:
 		// completed jobs are normal on a managed cluster.
@@ -881,7 +893,7 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 		g.Expect(statusStep).ToNot(BeNil())
 		g.Expect(statusStep.Status).To(Equal(result.StepCompleted))
 		g.Expect(statusStep.Details["trainingoperatorState"]).To(Equal(constants.ManagementStateRemoved))
-		g.Expect(statusStep.Details["trainingoperatorCRs"]).To(Equal(0))
+		g.Expect(statusStep.Details["trainingoperatorCRDInstalled"]).To(BeFalse())
 
 		readiness := findStep(actionResult.Status.Steps, "migration-readiness")
 		g.Expect(readiness).ToNot(BeNil())
@@ -920,7 +932,7 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 		g.Expect(summary.Message).To(ContainSubstring("no longer managed"))
 	})
 
-	t.Run("does not claim removal when component CRs remain after disablement", func(t *testing.T) {
+	t.Run("reports leftover jobs as unmanaged when the operator is removed and the CRD is still installed", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -928,7 +940,6 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 
 		target := newTestTargetForVersions(testCurrent35, testTarget36,
 			newDSC(constants.ManagementStateRemoved),
-			newTrainingOperatorCR("leftover-operator"),
 			succeeded,
 		)
 
@@ -937,24 +948,21 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 
 		g.Expect(err).ToNot(HaveOccurred())
 
-		// Disabled with leftover CRs: the status step warns about the
-		// incomplete cleanup, and the job steps stay silent about removal.
+		// The CRD lingers after removal, but nothing is managed through it,
+		// so the status step stays clean and the job steps can report the
+		// leftover workloads as unmanaged.
 		statusStep := findStep(actionResult.Status.Steps, "trainingoperator-status")
 		g.Expect(statusStep).ToNot(BeNil())
-		g.Expect(statusStep.Status).To(Equal(result.StepWarning))
-
-		g.Expect(statusStep.Message).To(And(
-			ContainSubstring("does not block the upgrade"),
-			ContainSubstring("consider cleaning them up"),
-		))
+		g.Expect(statusStep.Status).To(Equal(result.StepCompleted))
+		g.Expect(statusStep.Message).To(ContainSubstring("harmless leftover"))
 
 		readiness := findStep(actionResult.Status.Steps, "migration-readiness")
 		g.Expect(readiness).ToNot(BeNil())
-		g.Expect(readiness.Message).To(Not(ContainSubstring("has been removed")))
+		g.Expect(readiness.Message).To(ContainSubstring("TrainingOperator has been removed"))
 
 		summary := findStep(actionResult.Status.Steps, "summary")
 		g.Expect(summary).ToNot(BeNil())
-		g.Expect(summary.Message).To(Not(ContainSubstring("has been removed")))
+		g.Expect(summary.Message).To(ContainSubstring("no longer managed"))
 	})
 
 	t.Run("completes without warnings when managed with no active jobs for targets below 3.6", func(t *testing.T) {
@@ -965,7 +973,6 @@ func TestVerifyWorkloadsAction_RunClusterStates(t *testing.T) {
 
 		target := newTestTargetForVersions(testCurrent2x, testTarget3x,
 			newDSC(constants.ManagementStateManaged),
-			newTrainingOperatorCR("training-operator"),
 			succeeded,
 		)
 
