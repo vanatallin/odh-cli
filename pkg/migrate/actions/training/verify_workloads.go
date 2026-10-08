@@ -28,10 +28,6 @@ func (a *VerifyWorkloadsAction) Description() string { return verifyWorkloadsDes
 func (a *VerifyWorkloadsAction) Group() action.ActionGroup { return action.GroupValidation }
 func (a *VerifyWorkloadsAction) Phase() action.ActionPhase { return action.PhasePreUpgrade }
 
-// CanApply matches upgrades from any 2.x or pre-3.6 3.x current version:
-// 2.x clusters are on the Trainer v2 migration path, and TrainingOperator is
-// removed in RHOAI 3.6. A target equal to the current version means no upgrade
-// is happening and is excluded.
 func (a *VerifyWorkloadsAction) CanApply(target action.Target) bool {
 	if target.CurrentVersion == nil || target.TargetVersion == nil {
 		return false
@@ -79,18 +75,12 @@ func (t *verifyWorkloadsTask) Execute(ctx context.Context, target action.Target)
 	return recorder.Build(), nil
 }
 
-// trainingOperatorStatus captures the TrainingOperator component state
-// collected by the trainingoperator-status step so later steps can tell an
-// already-removed component apart from one that is still enabled.
 type trainingOperatorStatus struct {
 	state string
 }
 
 // removed reports whether TrainingOperator is still managed through the
-// DataScienceCluster. It mirrors the warning condition (only a Managed
-// component warns) so the two never disagree about what counts as removed.
-// A lingering component CRD does not count against removal: the operator
-// never deletes CRDs, and nothing is managed through a leftover CRD.
+// DataScienceCluster.
 func (s trainingOperatorStatus) removed() bool {
 	return s.state != constants.ManagementStateManaged
 }
@@ -141,14 +131,10 @@ func (t *verifyWorkloadsTask) checkTrainingOperator(
 			"%s (state: %s, CRD installed). %s",
 			msgRemovalWarning, state, msgRemovalAdvice)
 	case isRemovalTarget && enabled:
-		// Managed with no component CRD is inconsistent: an operator that
-		// manages the component serves its CRD.
 		step.Completef(result.StepWarning,
 			"TrainingOperator is set to Managed in DataScienceCluster but its CRD is not installed (inconsistent state). "+
 				"This does not block the upgrade: consider setting the trainingoperator managementState to 'Removed' before upgrading")
 	case isRemovalTarget && crdInstalled:
-		// CRDs are never garbage-collected, so a leftover CRD after the
-		// component is disabled is the expected post-cleanup state.
 		step.Completef(result.StepCompleted,
 			"TrainingOperator state: %s, CRD still installed (harmless leftover - the operator does not delete CRDs)",
 			state)
@@ -161,10 +147,6 @@ func (t *verifyWorkloadsTask) checkTrainingOperator(
 	return trainingOperatorStatus{state: state}, nil
 }
 
-// trainingOperatorManagementState reads the trainingoperator managementState
-// from the DataScienceCluster singleton. A missing DSC (operator not
-// installed) is reported as Removed rather than an error so the check can
-// still complete on partially installed clusters.
 func trainingOperatorManagementState(ctx context.Context, target action.Target) (string, error) {
 	dsc, err := client.GetDataScienceCluster(ctx, target.Client)
 	if err != nil {
@@ -184,18 +166,9 @@ func trainingOperatorManagementState(ctx context.Context, target action.Target) 
 }
 
 // checkTrainingOperatorCRD reports whether the TrainingOperator component CRD
-// (trainingoperators.components.platform.opendatahub.io) is installed. It
-// uses the same detection as checkTrainJobCRD: a LIST failing with a
-// no-match or not-found error means the CRD is absent, while a successful
-// LIST — even an empty one — proves the CRD is served. Component CR
-// instances are deliberately not inspected: the operator cleans them up when
-// the component is disabled and reports stuck deletions in DataScienceCluster
-// conditions, while the CRD itself is never deleted on removal.
+// (trainingoperators.components.platform.opendatahub.io) is installed.
 func checkTrainingOperatorCRD(ctx context.Context, target action.Target) (bool, error) {
-	crd, err := target.Client.List(ctx, resources.TrainingOperator)
-	print("---------")
-	print(crd)
-	print("---------")
+	_, err := target.Client.List(ctx, resources.TrainingOperator)
 	if err != nil {
 		if client.IsResourceTypeNotFound(err) {
 			return false, nil
@@ -287,12 +260,6 @@ func (t *verifyWorkloadsTask) enumerateV1Workloads(
 	return entries, nil
 }
 
-// assessMigrationReadiness reports active v1 jobs as warnings. Active jobs
-// stop being reconciled once TrainingOperator is no longer managed, so users
-// are advised to let them complete or delete them first — the upgrade itself
-// is never blocked. Job activity alone cannot tell whether the operator was
-// already removed (completed jobs are normal on a managed cluster too), so
-// the "already removed" wording is gated on the actual component state.
 func (t *verifyWorkloadsTask) assessMigrationReadiness(
 	entries []WorkloadEntry,
 	operator trainingOperatorStatus,
